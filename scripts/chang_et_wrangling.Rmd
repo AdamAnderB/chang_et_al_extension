@@ -1,0 +1,36 @@
+---
+title: "Chang_et_data"
+author: "Adam A. Bramlett and Yikai Li"
+date: "2024-09-24"
+output: html_document
+---
+
+Here is some starter code
+```{r setup, include=FALSE,warning=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+#This part should not be changed- We will make this constant for every script we work on. You will need to put the data folder three levels up in the folder structure to work
+```{r}
+#this is where your data should be--- two folders out indicated by the ../ and ../
+list.files("../../../data/cet_yas")
+
+#creating the folder variable for our data folder
+data_folder<-"../../../data/cet_yas/"
+
+# word data
+word_data<-read.csv(paste0(data_folder,"Chang_word_data_yk.csv"))
+
+# et data
+et_data<-read.csv(paste0(data_folder,"Chang_word_data_et_yk.csv"))
+```
+
+You can start to add your code from here: This will be really good practice for us creating a work flow so that we can collaborate through git. Feel free to copy the above for this---
+```{r}
+
+
+
+
+
+```

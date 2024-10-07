@@ -1,0 +1,54 @@
+---
+title: "Chang_et_data"
+author: "Adam A. Bramlett"
+date: "2024-09-24"
+output: html_document
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+#This part should not be changed- We will make this constant for every script we work on. You will need to put the data folder three levels up in the folder structure to work. The data is stored outside the project to avoid the data limitations on github and also to share on OSF.
+```{r}
+#this is where your data should be--- two folders out indicated by the ../ and ../
+list.files("../../../data/cet_yas")
+
+#creating the folder variable for our data folder
+data_folder<-"../../../data/cet_yas/"
+
+# word data
+word_data<-read.csv(paste0(data_folder,"Chang_word_data_yk.csv"))
+
+# et data
+et_data<-read.csv(paste0(data_folder,"Chang_word_data_et_yk.csv"))
+```
+
+This is where our scripts will be stored
+```{r}
+#This file will only have two scripts for now:
+#[1] "chang_et_wrangling.Rmd" "work_flow_example.Rmd" 
+list.files("../scripts")
+```
+This is where our visualizations will be stored. I put an example below
+```{r}
+#when you run this line of code nothing will be in there it will say: character(0) 
+list.files("../visualizations/")
+
+x<-rnorm(100,10,100)
+y<-rnorm(100,100,100)
+data_example<-data.frame(x,y)
+
+#For visualizations I always use this structure with the pipe- technically it is depreciated to a new verzion but the structure is the same. I only even put the data argument within the ggplot when I am using more than one dataframe.
+plot_example<-data_example%>%ggplot(aes(x=x,y=y))+
+  geom_point()+
+  theme_bw()
+
+plot_example
+
+#this is how we will save them--- notice how this is easy and straightforward. You don't need to save every plot. But, this is a good way to have it ready when we start doing something with it. For the plots that are telling a critical part of the story, we will do this. But, for descreptive stuff I usually only include ones I find important. This way I can refer back to them without running the code or going through things. Make the names informative so we can find them.
+ggsave(filename="../visualizations/plot_example.jpeg",plot=plot_example)
+```
+
+
