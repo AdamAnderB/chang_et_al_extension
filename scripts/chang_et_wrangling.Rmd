@@ -6,9 +6,15 @@ output: html_document
 ---
 
 Here is some starter code
-```{r setup, include=FALSE,warning=FALSE}
+```{r setup, include=FALSE, message= FALSE, error= FALSE, warning=FALSE}
+library(tidyverse)
+library(tidyr)
 library(dplyr)
+library(stringr)
+library(readxl)
+library(knitr)
 library(ggplot2)
+library(gridExtra)
 ```
 
 #This part should not be changed- We will make this constant for every script we work on. You will need to put the data folder three levels up in the folder structure to work
@@ -27,10 +33,225 @@ et_data<-read.csv(paste0(data_folder,"Chang_word_data_et_yk.csv"))
 ```
 
 You can start to add your code from here: This will be really good practice for us creating a work flow so that we can collaborate through git. Feel free to copy the above for this---
+
 ```{r}
+#potential way of cleaning yk
+prac_word <- word_data %>% 
+  filter(Zone.Type == "response_button_image") %>%
+  filter(display == "practice")  %>%
+  filter(Participant.Status == "complete")
+
+test2_word <- word_data %>% 
+  filter(Zone.Type == "response_button_image") %>%
+  filter(display == "test2")  %>%
+  filter(Participant.Status == "complete")
+```
+
+```{r}
+tidy_prac_word <- prac_word %>%
+  select(!c(Event.Index:Local.Date.and.Time,
+            Screen.Number:Zone.Name,
+            Reaction.Time:Response.Type,
+            experiment:Participant.Public.ID,
+            Participant.Starting.Group:Spreadsheet.Name,
+            X.Coordinate:randomise_blocks,
+            image_file, b1:b7,
+            body_text:image, prompt..Your.body.text.here.:branch.gqq4)) %>%
+  pivot_wider(names_from = Zone.Type,values_from = Response)
+
+tidy_test2_word <- test2_word %>%
+  select(!c(Event.Index:Local.Date.and.Time,
+            Screen.Number:Zone.Name,
+            Reaction.Time:Response.Type,
+            experiment:Participant.Public.ID,
+            Participant.Starting.Group:Spreadsheet.Name,
+            X.Coordinate:randomise_blocks,
+            image_file, q1:q4,
+            body_text:branch.gqq4)) %>%
+  pivot_wider(names_from = Zone.Type,values_from = Response)
+```
 
 
+```{r}
+cleaned_et <- et_data %>%
+  select(time_elapsed, participant_id, spreadsheet_row,
+         type, zone_name, x_pred_normalised, y_pred_normalised,
+         zone_x_normalised, zone_y_normalised, screen_index, zone_width_normalised, 
+         zone_height_normalised) %>%
+  filter(screen_index == 2) %>%
+  filter(type == "prediction" | zone_name %in% c("buttonA", "buttonB", "buttonD", "buttonE", "buttonC", "buttonF", "buttonG", "buttonH", "buttonI", "Zone1", "Zone2", "Zone3", "Zone4", "Zone5", "Zone6", "Zone7", "Zone8", "Zone9", "Zone10", "Zone11", "Zone12", "Zone13", "Zone14", "Zone15")) %>%
+  rename("Participant.Private.ID"="participant_id",
+         "Spreadsheet.Row"="spreadsheet_row") %>%
+  select(!screen_index)
+```
+
+```{r}
+prac_all <- tidy_prac_word %>%
+  left_join(cleaned_et, by = c("Participant.Private.ID", "Spreadsheet.Row")) %>%
+  filter(type == "prediction")
+
+center=.5#center of screen
+distance=0#distance to visual stimuli
+beyond_screen=1 #distance to beyond_screen
+
+prac_all <- prac_all%>%
+  mutate(image_viewing=
+  case_when(x_pred_normalised <= center-distance & 
+              y_pred_normalised >= center+distance ~ q1,
+            x_pred_normalised >= center+distance & 
+              y_pred_normalised >= center+distance ~ q2,
+            x_pred_normalised <= center-distance & 
+              y_pred_normalised <= center-distance ~ q3,
+            x_pred_normalised >= center+distance & 
+              y_pred_normalised <= center-distance ~ q4))%>%
+  filter(!is.na(image_viewing)) %>% 
+  mutate(target = if_else(image_viewing == target, 1, 0), 
+         comp1 = if_else(image_viewing == competitor_1, 1, 0), 
+         comp2 = if_else(image_viewing == competitor_2, 1, 0), 
+         comp3 = if_else(image_viewing == competitor_3, 1, 0))%>%
+  filter(x_pred_normalised>center-beyond_screen &
+           x_pred_normalised<center+beyond_screen&
+         y_pred_normalised>center-beyond_screen &
+           y_pred_normalised<center+beyond_screen)
+```
 
 
+```{r}
+frame_rate_cut_off<-5
+time_binning<-50
 
+prac_all_cleaned<-prac_all%>%
+  group_by(Participant.Private.ID, Spreadsheet.Row)%>%
+  mutate(count = n(),
+            max_time = max(time_elapsed),
+            frame_rate = count/max_time*1000) %>%
+  ungroup()%>%
+  group_by(Participant.Private.ID)%>%
+  mutate(median_frame_rate = median(frame_rate))%>%
+  filter(median_frame_rate>=frame_rate_cut_off)%>%
+  mutate(time_elapsed=time_elapsed-200)%>% 
+  mutate(time_elapsed_rounded=time_binning*round((time_elapsed)/time_binning))
+
+prac_all_tidy <- prac_all_cleaned%>%
+  filter(time_elapsed_rounded>=0 & time_elapsed_rounded<=2000)
+```
+
+```{r}
+prac_all_fix <- prac_all_tidy %>% 
+  group_by(time_elapsed_rounded) %>% 
+  summarise_at(vars(target, comp1, comp2, comp3),
+               mean)%>% 
+  pivot_longer(c("target", "comp1", "comp2", "comp3"), names_to = "type", values_to = "fix")
+```
+
+```{r}
+prac_fix <- ggplot(prac_all_fix, aes(x = time_elapsed_rounded, y = fix, color = type, fill = type))+
+  geom_smooth(method = "loess", level = 0.3)+
+  geom_point()+
+  labs(x = "Time Elapsed", y = "Fixation Proportion")
+
+prac_fix
+
+ggsave(filename="../visualizations/practice_fix.jpeg", plot=prac_fix)
+```
+
+```{r}
+test2_et <- tidy_test2_word %>%
+  left_join(cleaned_et, by = c("Participant.Private.ID", "Spreadsheet.Row")) 
+```
+
+```{r}
+pos <- test2_et[1:24, ] %>%
+  select(zone_name, zone_x_normalised, zone_y_normalised, zone_width_normalised, zone_height_normalised) %>%
+  rename("name" = "zone_name",
+         "x"="zone_x_normalised",
+         "y"="zone_y_normalised")
+pos$x = pos$x+pos$zone_width_normalised/2
+pos$y = pos$y+pos$zone_height_normalised/2
+
+pos <- pos[order(pos$x, pos$y),]
+pos$name = c("b1r", "b2r", "b3r", "b4r", "b5r", "b6r", "b7r", "b8r", "b9r",
+             "b10r", "b11r", "b12r", "b13r", "b14r", "b15r", "b16r",
+             "b17r", "b18r", "b19r", "b20r", "b21r", "b22r", "b23r", "b24r")
+a = t(pos[, c("x", "y")])
+colnames(a) = pos$name
+```
+
+```{r}
+test2_et <- test2_et %>% filter(type == "prediction")
+```
+
+```{r}
+for (n in colnames(a)){
+  test2_et[, n] <-  sqrt((test2_et$x_pred_normalised - a["x", n])**2 +
+    (test2_et$y_pred_normalised - a["y", n])**2)
+}
+```
+
+```{r}
+br <- test2_et %>%
+  select(b1r:b24r)
+```
+
+```{r}
+test2_et[,colnames(a)] = (br == apply(br, 1, min)) * 1
+test2_et$minfix = colnames(a)[apply(br, 1, which.min)]
+```
+
+```{r}
+frame_rate_cut_off<-5
+time_binning<-50
+
+test2_all<-test2_et%>%
+  group_by(Participant.Private.ID, Spreadsheet.Row)%>%
+  mutate(count = n(),
+            max_time = max(time_elapsed),
+            frame_rate = count/max_time*1000) %>%
+  ungroup()%>%
+  group_by(Participant.Private.ID)%>%
+  mutate(median_frame_rate = median(frame_rate))%>%
+  filter(median_frame_rate>=frame_rate_cut_off)%>%
+  mutate(time_elapsed=time_elapsed-200)%>% 
+  mutate(time_elapsed_rounded=time_binning*round((time_elapsed)/time_binning))
+
+test2_all_tidy <- test2_all%>%
+  filter(time_elapsed_rounded>=0 & time_elapsed_rounded<=5850)
+```
+
+```{r}
+buttons_mid <- ggplot(pos, aes(x = x, y = y, color = name))+
+  geom_jitter()
+
+buttons_mid
+
+ggsave(filename="../visualizations/buttons_mid.jpeg", plot=buttons_mid)
+```
+
+```{r}
+buttons_area <- ggplot(test2_all %>%
+         filter(x_pred_normalised >=0 & x_pred_normalised <= 1 &
+                  y_pred_normalised >=0 & y_pred_normalised <= 1), aes(x = x_pred_normalised, y = y_pred_normalised, color = minfix))+
+  geom_point()
+
+buttons_area
+
+ggsave(filename="../visualizations/buttons_area.jpeg", plot=buttons_area)
+```
+```{r}
+test2_all_fix <- test2_all_tidy %>% 
+  group_by(time_elapsed_rounded) %>% 
+  summarise_at(vars(b1r:b24r),
+               mean)%>% 
+  pivot_longer(c(colnames(a)), names_to = "type", values_to = "fix")
+```
+
+```{r}
+test2_fix <- ggplot(test2_all_fix, aes(x = time_elapsed_rounded, y = fix, color = type, fill = type))+
+  geom_smooth(method = "loess", level = 0.3)+
+  geom_point()+
+  labs(x = "Time Elapsed", y = "Fixation Proportion")
+
+test2_fix
+
+ggsave(filename="../visualizations/test2_fix.jpeg", plot=test2_fix)
 ```
